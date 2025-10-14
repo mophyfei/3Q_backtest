@@ -562,7 +562,7 @@ else:
         # 關鍵指標
         st.markdown("<h2>📊 績效總覽</h2>", unsafe_allow_html=True)
 
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        col1, col2, col3, col4, col5 = st.columns(5)
 
         with col1:
             st.markdown("""
@@ -604,17 +604,6 @@ else:
             """, unsafe_allow_html=True)
 
         with col5:
-            # 修正: 賺錢為紅色 (COLOR_PROFIT)
-            return_color = COLOR_PROFIT if total_return > 0 else COLOR_LOSS
-            st.markdown(f"""
-            <div class="metric-card">
-                <div style="font-size: 2.5em; margin-bottom: 10px;">💹</div>
-                <div style="color: #9CA3AF; font-size: 0.95em; margin-bottom: 5px;">總回報率</div>
-                <div style="color: {return_color}; font-size: 1.8em; font-weight: 700;">{total_return:.2f}%</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        with col6:
             # 修正: 賺錢為紅色 (COLOR_PROFIT)
             pnl_color = COLOR_PROFIT if total_pnl > 0 else COLOR_LOSS
             # 修正: 補上說明 (圖一問題 1)
