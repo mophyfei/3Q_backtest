@@ -1,0 +1,13 @@
+# 虛擬環境
+.venv/
+venv/
+
+# PyInstaller 產生的檔案
+dist/
+build/
+*.spec
+
+# 暫存檔與快取
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
