@@ -8,7 +8,7 @@ import io
 import time  # 引入 time 模組用於模擬進度
 
 # 設定頁面配置
-st.set_page_config(page_title="3Q全球贏家 - 專業回測分析", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="3Q全球贏家 - XQ 進階回測機", layout="wide", initial_sidebar_state="collapsed")
 
 # 顏色定義（符合台股慣例）
 COLOR_PROFIT = "#EF4444"  # 紅色
@@ -441,15 +441,15 @@ def monte_carlo_simulation(trades_df, n_simulations):
 
 # 主標題
 st.markdown("<h1>⚡ 3Q全球贏家</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #9CA3AF; font-size: 1.15em; margin-top: -10px;'>專業回測分析平台</p>",
+st.markdown("<p style='text-align: center; color: #9CA3AF; font-size: 1.15em; margin-top: -10px;'>XQ 回測分析器</p>",
             unsafe_allow_html=True)
 
 # 主要內容
 if not st.session_state.uploaded:
     # 未上傳狀態 - 僅保留標準的 st.file_uploader
-    st.markdown("<h2>💾 上傳回測報表</h2>", unsafe_allow_html=True)
+    st.markdown("<h2>💾 上傳 XQ 「選股中心」回測報表</h2>", unsafe_allow_html=True)
     st.markdown(
-        "<p style='color: #9CA3AF; font-size: 1.05em; margin-bottom: 25px;'>請上傳 XQ 全球贏家匯出的 CSV 交易回測報表。</p>",
+        "<p style='color: #9CA3AF; font-size: 1.05em; margin-bottom: 25px;'>請上傳 XQ 全球贏家「選股中心」匯出的 CSV 交易回測報表。</p>",
         unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader(
