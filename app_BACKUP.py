@@ -5,103 +5,130 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
 import io
+import time  # 引入 time 模組用於模擬進度
 
 # 設定頁面配置
-st.set_page_config(page_title="3Q全球贏家", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="3Q全球贏家 - XQ 進階回測機", layout="wide", initial_sidebar_state="collapsed")
+
+# 顏色定義（符合台股慣例）
+COLOR_PROFIT = "#EF4444"  # 紅色
+COLOR_LOSS = "#10B981"  # 綠色
+COLOR_PRIMARY = "#4A9EFF"  # 藍色
+
+# 初始化 session state
+if 'uploaded' not in st.session_state:
+    st.session_state.uploaded = False
+if 'df' not in st.session_state:
+    st.session_state.df = None
+if 'params_confirmed' not in st.session_state:
+    st.session_state.params_confirmed = False
+if 'mc_triggered' not in st.session_state:
+    st.session_state.mc_triggered = False
+if 'mc_simulations' not in st.session_state:
+    st.session_state.mc_simulations = 100
 
 # 自訂CSS - TradingView風格
-st.markdown("""
+st.markdown(f"""
 <style>
-    .main {
+    .main {{{{
         background: #0B0E14;
-    }
-    .stApp {
+    }}}}
+    .stApp {{{{
         background: #0B0E14;
-    }
+    }}}}
 
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    #MainMenu {{{{visibility: hidden;}}}}
+    footer {{{{visibility: hidden;}}}}
+    header {{{{visibility: hidden;}}}}
 
-    h1 {
-        color: #4A9EFF !important;
+    h1 {{{{
+        color: {COLOR_PRIMARY} !important;
         font-family: 'Trebuchet MS', sans-serif;
         font-weight: 600;
         font-size: 2.8em !important;
         text-align: center;
         margin-bottom: 0 !important;
         text-shadow: 0 0 30px rgba(74, 158, 255, 0.5);
-    }
+    }}}}
 
-    h2 {
+    h2 {{{{
         color: #E8EAED !important;
         font-family: 'Trebuchet MS', sans-serif;
         font-weight: 500;
         font-size: 1.4em !important;
-        border-left: 4px solid #4A9EFF;
+        border-left: 4px solid {COLOR_PRIMARY};
         padding-left: 15px;
         margin-top: 40px !important;
         margin-bottom: 20px !important;
-    }
+    }}}}
 
-    .upload-zone {
-        background: linear-gradient(145deg, #1A1D24 0%, #252930 100%);
-        border: 3px dashed #4A9EFF;
-        border-radius: 20px;
-        padding: 80px 40px;
-        text-align: center;
-        margin: 50px auto;
-        max-width: 900px;
-        cursor: pointer;
-        transition: all 0.4s ease;
-        box-shadow: 0 10px 40px rgba(74, 158, 255, 0.2);
-    }
+    /* 確保所有文字顏色正確 */
+    p, span, div, label {{{{
+        color: #E8EAED;
+    }}}}
 
-    .upload-zone:hover {
-        border-color: #6BB6FF;
-        box-shadow: 0 15px 60px rgba(74, 158, 255, 0.35);
-        transform: translateY(-5px);
-        background: linear-gradient(145deg, #1F2229 0%, #2A2F38 100%);
-    }
+    .stFileUploader label {{{{
+        color: #9CA3AF !important;
+    }}}}
 
-    .metric-card {
+    .metric-card {{{{
         background: linear-gradient(145deg, #1A1D24 0%, #252930 100%);
         border: 1px solid rgba(74, 158, 255, 0.3);
         border-radius: 15px;
         padding: 25px;
         box-shadow: 0 6px 30px rgba(74, 158, 255, 0.15);
         transition: all 0.3s ease;
-    }
+        height: 100%; /* 確保高度一致 */
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }}}}
 
-    .metric-card:hover {
+    .metric-card:hover {{{{
         transform: translateY(-5px);
         box-shadow: 0 10px 40px rgba(74, 158, 255, 0.25);
         border-color: rgba(74, 158, 255, 0.5);
-    }
+    }}}}
 
-    .stMetric label {
+    .stMetric label {{{{
         color: #9CA3AF !important;
         font-size: 0.95em !important;
         font-weight: 500 !important;
-    }
+    }}}}
 
-    .stMetric > div {
+    .stMetric > div {{{{
         color: #E8EAED !important;
         font-size: 2em !important;
         font-weight: 700 !important;
-    }
+    }}}}
 
-    .stNumberInput > div > div > input,
-    .stSelectbox > div > div > div {
+    /* 確保台股顏色應用在 Metric Card */
+    .metric-profit {{{{ color: {COLOR_PROFIT} !important; }}}} /* 賺錢用紅色 */
+    .metric-loss {{{{ color: {COLOR_LOSS} !important; }}}}     /* 虧錢用綠色 */
+
+
+    .stNumberInput > div > div > input {{{{
         background: #1A1D24 !important;
         color: #E8EAED !important;
         border: 1px solid #3A3F4B !important;
         border-radius: 8px !important;
         font-size: 1.05em !important;
-    }
+    }}}}
 
-    .stButton > button {
-        background: linear-gradient(145deg, #4A9EFF 0%, #357ABD 100%);
+    /* 針對 st.radio (計算模式) 調整樣式 */
+    div[data-baseweb="radio"] {{{{
+        background: #1A1D24; /* 調整背景色 */
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #3A3F4B;
+        color: #E8EAED; /* 確保文字顏色可見 */
+    }}}}
+    .stRadio > label {{{{
+        color: #E8EAED !important; /* 確保 Radio 標籤文字顏色可見 */
+    }}}}
+
+    .stButton > button {{{{
+        background: linear-gradient(145deg, {COLOR_PRIMARY} 0%, #357ABD 100%);
         color: white;
         border: none;
         border-radius: 10px;
@@ -110,78 +137,54 @@ st.markdown("""
         font-size: 1.05em;
         box-shadow: 0 6px 20px rgba(74, 158, 255, 0.4);
         transition: all 0.3s ease;
-    }
+    }}}}
 
-    .stButton > button:hover {
-        background: linear-gradient(145deg, #6BB6FF 0%, #4A9EFF 100%);
+    .stButton > button:hover {{{{
+        background: linear-gradient(145deg, #6BB6FF 0%, {COLOR_PRIMARY} 100%);
         box-shadow: 0 8px 30px rgba(74, 158, 255, 0.5);
         transform: translateY(-3px);
-    }
+    }}}}
 
-    .stTabs [data-baseweb="tab-list"] {
+    .stTabs [data-baseweb="tab-list"] {{{{
         gap: 10px;
         background: #1A1D24;
         border-radius: 10px;
         padding: 6px;
-    }
+    }}}}
 
-    .stTabs [data-baseweb="tab"] {
+    .stTabs [data-baseweb="tab"] {{{{
         background: transparent;
         color: #9CA3AF;
         border-radius: 8px;
         padding: 12px 24px;
         font-weight: 500;
         font-size: 1.05em;
-    }
+    }}}}
 
-    .stTabs [aria-selected="true"] {
-        background: #4A9EFF;
+    .stTabs [aria-selected="true"] {{{{
+        background: {COLOR_PRIMARY};
         color: white;
-    }
+    }}}}
 
-    .profit {
-        color: #EF4444 !important;
-    }
-
-    .loss {
-        color: #10B981 !important;
-    }
-
-    .streamlit-expanderHeader {
-        background: #1A1D24;
-        border: 1px solid #3A3F4B;
-        border-radius: 10px;
-        color: #E8EAED !important;
-        font-size: 1.05em !important;
-    }
-
-    hr {
+    hr {{{{
         border-color: #3A3F4B;
         margin: 40px 0;
-    }
+    }}}}
 
-    .stSpinner > div {
-        border-top-color: #4A9EFF !important;
-    }
+    /* 進度條顏色 */
+    .stProgress > div > div > div {{{{
+        background-color: {COLOR_PRIMARY};
+    }}}}
+    .stProgress > div > div {{{{
+        background-color: #3A3F4B;
+    }}}}
 
-    /* 修復數字可讀性 */
-    p, span, div {
-        color: #E8EAED;
-    }
-
-    .stMarkdown {
-        color: #E8EAED;
-    }
 </style>
-""", unsafe_allow_html=True)
-
-# 初始化session state
-if 'uploaded' not in st.session_state:
-    st.session_state.uploaded = False
-if 'df' not in st.session_state:
-    st.session_state.df = None
-if 'params_confirmed' not in st.session_state:
-    st.session_state.params_confirmed = False
+""".format(
+    COLOR_PRIMARY=COLOR_PRIMARY,
+    COLOR_PROFIT=COLOR_PROFIT,
+    COLOR_LOSS=COLOR_LOSS
+), unsafe_allow_html=True)
 
 
 # 計算函數
@@ -189,10 +192,18 @@ def parse_csv(file):
     """解析CSV檔案"""
     encodings = ['big5', 'utf-8', 'gb2312', 'cp950']
 
-    for encoding in encodings:
+    # 模擬解析進度
+    progress_bar = st.empty()
+    progress_bar.progress(0, text="載入檔案中...")
+
+    for i, encoding in enumerate(encodings):
         try:
             file.seek(0)
             df = pd.read_csv(file, encoding=encoding)
+
+            # 模擬計算時間
+            time.sleep(0.5)
+            progress_bar.progress(int((i + 1) / len(encodings) * 50), text=f"嘗試編碼: {encoding}...")
 
             required_cols = ['商品名稱', '商品代碼', '序號', '進場時間', '進場方向',
                              '進場價格', '出場時間', '出場方向', '出場價格']
@@ -203,20 +214,33 @@ def parse_csv(file):
             df['進場價格'] = pd.to_numeric(df['進場價格'])
             df['出場價格'] = pd.to_numeric(df['出場價格'])
 
+            progress_bar.progress(100, text="✅ 檔案解析完成!")
+            time.sleep(0.5)
+            progress_bar.empty()
+
             return df, None
         except Exception as e:
+            # 錯誤不需要中斷，繼續嘗試下一個編碼
             continue
 
+    progress_bar.empty()
     return None, "無法解析CSV檔案，請確認檔案格式是否正確"
 
 
 def calculate_trades(df, investment, mode):
-    """計算每筆交易的損益"""
+    # ... (計算函數保持不變) ...
+    """計算每筆交易的損益 (未考慮交易成本)"""
     trades = []
+
+    # 這裡可以加入一個 progress bar 來追蹤計算進度
+    # 但因為計算很快，這裡先省略，保持原本的計算邏輯
 
     for idx, row in df.iterrows():
         entry_price = row['進場價格']
         exit_price = row['出場價格']
+
+        if entry_price == 0:
+            continue
 
         if mode == "整張計算":
             shares = int(investment / (entry_price * 1000)) * 1000
@@ -227,6 +251,7 @@ def calculate_trades(df, investment, mode):
             shares = investment / entry_price
             actual_investment = shares * entry_price
 
+        # 簡單計算，未考慮費用
         pnl = shares * (exit_price - entry_price)
         pnl_pct = (exit_price - entry_price) / entry_price
 
@@ -247,13 +272,22 @@ def calculate_trades(df, investment, mode):
     return pd.DataFrame(trades)
 
 
+# ... (其餘計算函數保持不變) ...
+
 def calculate_equity_curve(trades_df):
-    """計算權益曲線"""
+    """計算權益曲線，標記創新高點"""
     if len(trades_df) == 0:
         return pd.DataFrame()
 
     trades_df = trades_df.sort_values('出場時間').reset_index(drop=True)
     trades_df['累積損益'] = trades_df['損益'].cumsum()
+
+    # 標記創新高點
+    cumulative = trades_df['累積損益'].values
+    running_max = np.maximum.accumulate(cumulative)
+    trades_df['New_High'] = (cumulative == running_max) & (
+                cumulative > trades_df['累積損益'].shift(1).fillna(-np.inf).values)
+    trades_df.loc[0, 'New_High'] = True  # 第一筆交易一定是新高 (相對初始資金0)
 
     return trades_df
 
@@ -274,8 +308,8 @@ def calculate_concurrent_holdings(trades_df):
     for date in all_dates:
         # 找出在這個日期持有的倉位
         holding_positions = trades_df[
-            (trades_df['進場時間'] <= date) &
-            (trades_df['出場時間'] >= date)
+            (trades_df['進場時間'].dt.date <= date.date()) &
+            (trades_df['出場時間'].dt.date >= date.date())
             ]
         total_amount = holding_positions['投入金額'].sum()
         holdings.append({'日期': date, '持有金額': total_amount})
@@ -309,7 +343,7 @@ def calculate_max_concurrent_positions(trades_df):
 
 
 def calculate_drawdown(equity_curve):
-    """計算MDD"""
+    """計算MDD並標記創新低點"""
     if len(equity_curve) == 0:
         return pd.DataFrame(), 0, 0
 
@@ -317,24 +351,30 @@ def calculate_drawdown(equity_curve):
     running_max = np.maximum.accumulate(cumulative)
     drawdown = cumulative - running_max
 
-    # 計算百分比回撤 - 基於初始資金而非最高點
+    # 標記回撤創新低點 (即最大回撤)
+    running_min_dd = np.minimum.accumulate(drawdown)
+    equity_curve['New_Drawdown'] = (drawdown == running_min_dd)
+
+    max_dd = drawdown.min()
+
+    # 計算百分比回撤 - 基於初始資金而非最高點 (暫時保留，但不使用)
     initial_capital = 0  # 從0開始
     drawdown_pct = drawdown / (running_max - initial_capital + 1e-10)
 
-    max_dd = drawdown.min()
-    max_dd_pct = drawdown_pct.min()
+    max_dd_pct = drawdown_pct.min()  # 最大的百分比回撤
 
     dd_df = pd.DataFrame({
         '時間': equity_curve['出場時間'],
         '回撤金額': drawdown,
-        '回撤%': drawdown_pct * 100
+        '回撤%': drawdown_pct * 100,
+        'New_Drawdown': equity_curve['New_Drawdown']
     })
 
     return dd_df, max_dd, max_dd_pct
 
 
 def calculate_sharpe_ratio(trades_df):
-    """計算夏普值"""
+    """計算夏普值 (年化，假設年交易日 252)"""
     if len(trades_df) == 0:
         return 0
 
@@ -348,68 +388,87 @@ def calculate_sharpe_ratio(trades_df):
     if std_return == 0:
         return 0
 
-    sharpe = (mean_return / std_return) * np.sqrt(252)
+    # 假設策略是日頻率，或者報酬率是每筆交易的報酬率
+    # 這裡使用每筆交易的報酬率進行年化 (sqrt(交易次數/年化因子), 簡化處理)
+    sharpe = (mean_return / std_return) * np.sqrt(252)  # 簡化年化
 
     return sharpe
 
 
-def monte_carlo_simulation(trades_df, n_simulations, investment):
+def calculate_profit_factor(trades_df):
+    """計算獲利因子"""
+    gross_profit = trades_df[trades_df['損益'] > 0]['損益'].sum()
+    gross_loss = trades_df[trades_df['損益'] < 0]['損益'].sum()
+
+    if gross_loss == 0 or gross_profit == 0:
+        return np.inf if gross_loss == 0 else 0
+    else:
+        return gross_profit / abs(gross_loss)
+
+
+def monte_carlo_simulation(trades_df, n_simulations):
     """蒙地卡羅模擬 - 返回多條權益曲線"""
     if len(trades_df) == 0:
         return []
 
-    returns = trades_df['報酬率'].values
     pnl_values = trades_df['損益'].values
-    n_trades = len(returns)
+    n_trades = len(pnl_values)
 
     simulation_curves = []
 
-    for _ in range(n_simulations):
-        # 隨機抽樣交易損益
+    # 步驟 3: 在開始模擬時顯示進度條
+    progress_bar = st.empty()
+
+    for i in range(n_simulations):
+        # 隨機抽樣交易損益 (Bootstrap)
         sim_pnl = np.random.choice(pnl_values, size=n_trades, replace=True)
         sim_cumulative = np.cumsum(sim_pnl)
         simulation_curves.append(sim_cumulative)
+
+        # 更新進度條 (因為計算速度很快，這裡可以加入 time.sleep(0.001) 讓進度條稍微可見)
+        progress = int((i + 1) / n_simulations * 100)
+        progress_bar.progress(progress, text=f"執行模擬中: {i + 1}/{n_simulations} ({progress}%)")
+
+        # 由於 Streamlit 單線程的限制，這裡的百分比顯示僅為參考，並非實時進度。
+        # time.sleep(0.001) # 可選: 稍微延遲讓用戶看到進度條
+
+    progress_bar.progress(100, text="✅ 模擬完成!")
+    time.sleep(0.5)
+    progress_bar.empty()
 
     return simulation_curves
 
 
 # 主標題
 st.markdown("<h1>⚡ 3Q全球贏家</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #9CA3AF; font-size: 1.15em; margin-top: -10px;'>專業回測分析平台</p>",
+st.markdown("<p style='text-align: center; color: #9CA3AF; font-size: 1.15em; margin-top: -10px;'>XQ 回測分析器</p>",
             unsafe_allow_html=True)
 
 # 主要內容
 if not st.session_state.uploaded:
-    # 未上傳狀態
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    # 未上傳狀態 - 僅保留標準的 st.file_uploader
+    st.markdown("<h2>💾 上傳 XQ 「選股中心」回測報表</h2>", unsafe_allow_html=True)
+    st.markdown(
+        "<p style='color: #9CA3AF; font-size: 1.05em; margin-bottom: 25px;'>請上傳 XQ 全球贏家「選股中心」匯出的 CSV 交易回測報表。</p>",
+        unsafe_allow_html=True)
 
     uploaded_file = st.file_uploader(
-        "",
+        "請選擇 CSV 檔案",
         type=['csv'],
-        label_visibility="collapsed",
-        help="拖曳CSV檔案到此處或點擊上傳"
+        label_visibility="visible",
+        key="file_uploader_key"
     )
 
-    # 使用HTML/CSS創建大的上傳區域提示
-    st.markdown("""
-    <div class="upload-zone">
-        <div style="font-size: 5em; margin-bottom: 25px;">📊</div>
-        <h2 style="color: #E8EAED; margin: 0; border: none; padding: 0; font-size: 2em;">上傳回測報表</h2>
-        <p style="color: #9CA3AF; margin-top: 15px; font-size: 1.2em;">支援 XQ 全球贏家 CSV 格式</p>
-        <p style="color: #6B7280; margin-top: 10px; font-size: 1em;">請使用上方的按鈕選擇檔案</p>
-    </div>
-    """, unsafe_allow_html=True)
-
     if uploaded_file is not None:
-        with st.spinner('🔄 正在解析檔案...'):
-            df, error = parse_csv(uploaded_file)
+        # 這裡會觸發 parse_csv 內部的進度條
+        df, error = parse_csv(uploaded_file)
 
-            if error:
-                st.error(f"❌ {error}")
-            else:
-                st.session_state.df = df
-                st.session_state.uploaded = True
-                st.rerun()
+        if error:
+            st.error(f"❌ {error}")
+        else:
+            st.session_state.df = df
+            st.session_state.uploaded = True
+            st.rerun()
 
 elif not st.session_state.params_confirmed:
     # 參數設定階段
@@ -418,11 +477,6 @@ elif not st.session_state.params_confirmed:
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        st.markdown("""
-        <div style="background: linear-gradient(145deg, #1A1D24 0%, #252930 100%); 
-                    padding: 40px; border-radius: 15px; border: 1px solid rgba(74, 158, 255, 0.3);">
-        """, unsafe_allow_html=True)
-
         investment_amount = st.number_input(
             "💰 每筆固定投入金額 (元)",
             min_value=1000,
@@ -432,19 +486,21 @@ elif not st.session_state.params_confirmed:
             help="每次進場時投入的固定金額"
         )
 
-        calc_mode = st.selectbox(
+        # 修正: 使用 st.radio 替換下拉選單
+        calc_mode = st.radio(
             "📊 計算模式",
             ["整張計算", "股數計算"],
+            index=0,
+            key="calc_mode_radio",
             help="整張計算: 以1000股為單位，高價股可能買不起\n股數計算: 可買零股，任何價位都能買"
         )
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
         col_a, col_b, col_c = st.columns([1, 1, 1])
         with col_b:
             if st.button("✅ 確認開始分析", type="primary", use_container_width=True):
+                # 這裡不需要進度條，因為主要計算在後面
                 st.session_state.investment_amount = investment_amount
                 st.session_state.calc_mode = calc_mode
                 st.session_state.params_confirmed = True
@@ -475,19 +531,21 @@ else:
 
         if st.button("🔄 重新設定"):
             st.session_state.params_confirmed = False
+            st.session_state.mc_triggered = False  # 重設時清空模擬結果
             st.rerun()
 
         if st.button("📤 重新上傳"):
             st.session_state.uploaded = False
             st.session_state.df = None
             st.session_state.params_confirmed = False
+            st.session_state.mc_triggered = False  # 重設時清空模擬結果
             st.rerun()
 
-    # 計算交易
+    # 計算交易 (這裡的計算速度很快，不需要進度條)
     trades_df = calculate_trades(df, investment_amount, calc_mode)
 
     if len(trades_df) == 0:
-        st.error("❌ 沒有可執行的交易，請調整投入金額或計算模式")
+        st.error(f"❌ 沒有可執行的交易。請檢查您的回測報表或調整投入金額 ${investment_amount:,} 及計算模式: {calc_mode}")
     else:
         # 計算指標
         equity_curve = calculate_equity_curve(trades_df)
@@ -497,6 +555,7 @@ else:
         max_concurrent = calculate_max_concurrent_positions(trades_df)
         dd_df, max_dd, max_dd_pct = calculate_drawdown(equity_curve)
         sharpe = calculate_sharpe_ratio(trades_df)
+        profit_factor = calculate_profit_factor(trades_df)
         win_rate = (trades_df['損益'] > 0).sum() / len(trades_df) * 100
         concurrent_df = calculate_concurrent_holdings(trades_df)
 
@@ -515,6 +574,16 @@ else:
             """.format(sharpe), unsafe_allow_html=True)
 
         with col2:
+            pf_color = COLOR_PROFIT if profit_factor >= 1 else COLOR_LOSS
+            st.markdown(f"""
+            <div class="metric-card">
+                <div style="font-size: 2.5em; margin-bottom: 10px;">⚖️</div>
+                <div style="color: #9CA3AF; font-size: 0.95em; margin-bottom: 5px;">獲利因子</div>
+                <div style="color: {pf_color}; font-size: 1.8em; font-weight: 700;">{profit_factor:.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
             st.markdown("""
             <div class="metric-card">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">💼</div>
@@ -523,36 +592,28 @@ else:
             </div>
             """.format(max_concurrent), unsafe_allow_html=True)
 
-        with col3:
-            mdd_color = "#10B981" if max_dd < 0 else "#EF4444"
-            st.markdown("""
+        with col4:
+            # 修正: 虧損為綠色 (COLOR_LOSS)，最大回撤是負數
+            mdd_color = COLOR_LOSS if max_dd < 0 else COLOR_PROFIT
+            st.markdown(f"""
             <div class="metric-card">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">📉</div>
                 <div style="color: #9CA3AF; font-size: 0.95em; margin-bottom: 5px;">最大回撤 (MDD)</div>
-                <div style="color: {}; font-size: 1.8em; font-weight: 700;">${:,.0f}</div>
-                <div style="color: {}; font-size: 1.2em; margin-top: 5px;">({:.2f}%)</div>
+                <div style="color: {mdd_color}; font-size: 1.8em; font-weight: 700;">${max_dd:,.0f}</div>
             </div>
-            """.format(mdd_color, max_dd, mdd_color, max_dd_pct * 100), unsafe_allow_html=True)
-
-        with col4:
-            return_color = "#EF4444" if total_return > 0 else "#10B981"
-            st.markdown("""
-            <div class="metric-card">
-                <div style="font-size: 2.5em; margin-bottom: 10px;">💹</div>
-                <div style="color: #9CA3AF; font-size: 0.95em; margin-bottom: 5px;">總回報率</div>
-                <div style="color: {}; font-size: 1.8em; font-weight: 700;">{:.2f}%</div>
-            </div>
-            """.format(return_color, total_return), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
         with col5:
-            pnl_color = "#EF4444" if total_pnl > 0 else "#10B981"
-            st.markdown("""
+            # 修正: 賺錢為紅色 (COLOR_PROFIT)
+            pnl_color = COLOR_PROFIT if total_pnl > 0 else COLOR_LOSS
+            # 修正: 補上說明 (圖一問題 1)
+            st.markdown(f"""
             <div class="metric-card">
                 <div style="font-size: 2.5em; margin-bottom: 10px;">💰</div>
                 <div style="color: #9CA3AF; font-size: 0.95em; margin-bottom: 5px;">總損益</div>
-                <div style="color: {}; font-size: 1.8em; font-weight: 700;">${:,.0f}</div>
+                <div style="color: {pnl_color}; font-size: 1.8em; font-weight: 700;">${total_pnl:,.0f}</div>
             </div>
-            """.format(pnl_color, total_pnl), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -573,7 +634,7 @@ else:
             shared_xaxes=True,
             vertical_spacing=0.06,
             row_heights=[0.5, 0.25, 0.25],
-            subplot_titles=('權益曲線', '回撤 (MDD)', '同時持有金額')
+            subplot_titles=('累積損益曲線', '績效回檔', '同時持有金額')
         )
 
         # 權益曲線
@@ -583,17 +644,31 @@ else:
                 y=equity_curve['累積損益'],
                 mode='lines',
                 name='累積損益',
-                line=dict(color='#4A9EFF', width=3),
+                line=dict(color=COLOR_PROFIT, width=3),  # 修正: 權益曲線用紅色
                 fill='tozeroy',
-                fillcolor='rgba(74, 158, 255, 0.15)',
+                fillcolor=f'rgba({int(COLOR_PROFIT[1:3], 16)}, {int(COLOR_PROFIT[3:5], 16)}, {int(COLOR_PROFIT[5:7], 16)}, 0.15)',
                 hovertemplate='<b>%{x|%Y-%m-%d}</b><br>累積損益: $%{y:,.0f}<extra></extra>'
+            ),
+            row=1, col=1
+        )
+
+        # 權益曲線 - 創新高標記
+        new_highs = equity_curve[equity_curve['New_High'] == True]
+        fig.add_trace(
+            go.Scatter(
+                x=new_highs['出場時間'],
+                y=new_highs['累積損益'],
+                mode='markers',
+                name='權益新高點',
+                marker=dict(color='white', size=8, line=dict(width=1, color=COLOR_PROFIT)),
+                hovertemplate='<b>%{x|%Y-%m-%d}</b><br>權益新高: $%{y:,.0f}<extra></extra>'
             ),
             row=1, col=1
         )
 
         fig.add_hline(y=0, line_dash="dot", line_color="#6B7280", line_width=1.5, row=1, col=1)
 
-        # MDD
+        # 績效回檔 (MDD)
         fig.add_trace(
             go.Scatter(
                 x=dd_df['時間'],
@@ -601,9 +676,23 @@ else:
                 fill='tozeroy',
                 mode='lines',
                 name='回撤',
-                line=dict(color='#EF4444', width=2),
-                fillcolor='rgba(239, 68, 68, 0.25)',
-                hovertemplate='<b>%{x|%Y-%m-%d}</b><br>回撤: $%{y:,.0f}<extra></extra>'
+                line=dict(color=COLOR_LOSS, width=2),  # 修正: 回撤用綠色
+                fillcolor=f'rgba({int(COLOR_LOSS[1:3], 16)}, {int(COLOR_LOSS[3:5], 16)}, {int(COLOR_LOSS[5:7], 16)}, 0.25)',
+                hovertemplate='<b>%{x|%Y-%m-%d}</b><br>回檔金額: $%{y:,.0f}<extra></extra>'
+            ),
+            row=2, col=1
+        )
+
+        # 績效回檔 - 創新低標記 (即 MDD)
+        new_drawdowns = dd_df[dd_df['New_Drawdown'] == True]
+        fig.add_trace(
+            go.Scatter(
+                x=new_drawdowns['時間'],
+                y=new_drawdowns['回撤金額'],
+                mode='markers',
+                name='最大回撤點',
+                marker=dict(color='white', size=8, line=dict(width=1, color=COLOR_LOSS)),
+                hovertemplate='<b>%{x|%Y-%m-%d}</b><br>回檔新低: $%{y:,.0f}<extra></extra>'
             ),
             row=2, col=1
         )
@@ -661,13 +750,18 @@ else:
             # 損益分佈直方圖
             fig_dist = go.Figure()
 
-            colors = ['#EF4444' if x > 0 else '#10B981' for x in trades_df['損益']]
+            # 根據損益正負賦予顏色 (紅色賺，綠色賠)
+            pnl_data = trades_df['損益'].values
+            colors_hist = [COLOR_PROFIT if p > 0 else COLOR_LOSS for p in pnl_data]
 
+            # 這裡使用 Plotly 內建的 Histogarm
             fig_dist.add_trace(go.Histogram(
-                x=trades_df['損益'],
+                x=pnl_data,
                 nbinsx=50,
+                # 由於 Plotly Histogram 難以對單一條形圖上色，這裡使用 `marker.color` 保持單一顏色，但在其他圖中使用條件顏色。
+                # 為了視覺效果，這裡使用 Primary Color，並在 Bar 圖中使用條件顏色。
                 marker=dict(
-                    color=colors,
+                    color=COLOR_PRIMARY,
                     line=dict(color='#3A3F4B', width=0.5)
                 ),
                 hovertemplate='損益: $%{x:,.0f}<br>次數: %{y}<extra></extra>'
@@ -699,7 +793,7 @@ else:
 
             trades_df['價格區間'] = pd.cut(trades_df['進場價格'], bins=price_bins, labels=price_labels)
 
-            # 計算每個價格區間的平均損益和交易次數
+            # 計算每個價格區間的總損益和交易次數
             price_analysis = trades_df.groupby('價格區間', observed=True).agg({
                 '損益': ['sum', 'mean', 'count']
             }).reset_index()
@@ -713,8 +807,9 @@ else:
                 horizontal_spacing=0.12
             )
 
-            colors_sum = ['#EF4444' if x > 0 else '#10B981' for x in price_analysis['總損益']]
-            colors_avg = ['#EF4444' if x > 0 else '#10B981' for x in price_analysis['平均損益']]
+            # 修正: 根據損益正負賦予顏色 (紅色賺，綠色賠)
+            colors_sum = [COLOR_PROFIT if x > 0 else COLOR_LOSS for x in price_analysis['總損益']]
+            colors_avg = [COLOR_PROFIT if x > 0 else COLOR_LOSS for x in price_analysis['平均損益']]
 
             fig_price.add_trace(
                 go.Bar(
@@ -768,26 +863,22 @@ else:
             )
 
         with tab3:
-            # 時間分析
+            # 時間分析 - 依開倉時間
             time_tab1, time_tab2 = st.tabs(["📅 依開倉時間", "📅 依關倉時間"])
 
             with time_tab1:
                 # 按月份分組 - 開倉
                 trades_df['進場月份'] = trades_df['進場時間'].dt.to_period('M')
                 entry_analysis = trades_df.groupby('進場月份').agg({
-                    '損益': ['sum', 'mean', 'count']
+                    '損益': ['sum', 'count']
                 }).reset_index()
-                entry_analysis.columns = ['月份', '總損益', '平均損益', '交易次數']
+                entry_analysis.columns = ['月份', '總損益', '交易次數']
                 entry_analysis['月份'] = entry_analysis['月份'].astype(str)
 
-                fig_entry = make_subplots(
-                    rows=2, cols=1,
-                    subplot_titles=('開倉月份 - 總損益', '開倉月份 - 平均損益'),
-                    vertical_spacing=0.15,
-                    row_heights=[0.5, 0.5]
-                )
+                fig_entry = go.Figure()
 
-                colors_entry = ['#EF4444' if x > 0 else '#10B981' for x in entry_analysis['總損益']]
+                # 修正: 根據損益正負賦予顏色 (紅色賺，綠色賠)
+                colors_entry = [COLOR_PROFIT if x > 0 else COLOR_LOSS for x in entry_analysis['總損益']]
 
                 fig_entry.add_trace(
                     go.Bar(
@@ -797,57 +888,47 @@ else:
                         text=entry_analysis['交易次數'],
                         texttemplate='%{text}筆',
                         textposition='outside',
-                        hovertemplate='<b>%{x}</b><br>總損益: $%{y:,.0f}<br>交易次數: %{text}筆<extra></extra>'
-                    ),
-                    row=1, col=1
-                )
-
-                colors_avg = ['#EF4444' if x > 0 else '#10B981' for x in entry_analysis['平均損益']]
-
-                fig_entry.add_trace(
-                    go.Bar(
-                        x=entry_analysis['月份'],
-                        y=entry_analysis['平均損益'],
-                        marker=dict(color=colors_avg, line=dict(color='#3A3F4B', width=0.5)),
-                        hovertemplate='<b>%{x}</b><br>平均損益: $%{y:,.0f}<extra></extra>'
-                    ),
-                    row=2, col=1
+                        hovertemplate='<b>%{x}</b><br>總損益: $%{y:,.0f}<br>交易次數: %{text}筆<extra></extra>',
+                        name='總損益'
+                    )
                 )
 
                 fig_entry.add_hline(y=0, line_dash="dash", line_color="#6B7280", line_width=1.5)
 
                 fig_entry.update_layout(
-                    height=700,
+                    title='開倉月份 - 總損益',
+                    height=500,
                     template='plotly_dark',
                     paper_bgcolor='#0B0E14',
                     plot_bgcolor='#1A1D24',
                     font=dict(color='#E8EAED', size=12),
                     showlegend=False,
-                    margin=dict(l=20, r=20, t=40, b=20)
+                    margin=dict(l=20, r=20, t=60, b=20),
+                    xaxis_title='月份',
+                    yaxis_title='總損益 (元)'
                 )
 
                 fig_entry.update_xaxes(showgrid=True, gridcolor='#3A3F4B')
-                fig_entry.update_yaxes(title_text="損益 (元)", showgrid=True, gridcolor='#3A3F4B')
+                fig_entry.update_yaxes(showgrid=True, gridcolor='#3A3F4B')
 
                 st.plotly_chart(fig_entry, use_container_width=True)
+
+                st.dataframe(entry_analysis.style.format({'總損益': '${:,.0f}', '交易次數': '{:.0f}'}),
+                             use_container_width=True)
 
             with time_tab2:
                 # 按月份分組 - 關倉
                 trades_df['出場月份'] = trades_df['出場時間'].dt.to_period('M')
                 exit_analysis = trades_df.groupby('出場月份').agg({
-                    '損益': ['sum', 'mean', 'count']
+                    '損益': ['sum', 'count']
                 }).reset_index()
-                exit_analysis.columns = ['月份', '總損益', '平均損益', '交易次數']
+                exit_analysis.columns = ['月份', '總損益', '交易次數']
                 exit_analysis['月份'] = exit_analysis['月份'].astype(str)
 
-                fig_exit = make_subplots(
-                    rows=2, cols=1,
-                    subplot_titles=('關倉月份 - 總損益', '關倉月份 - 平均損益'),
-                    vertical_spacing=0.15,
-                    row_heights=[0.5, 0.5]
-                )
+                fig_exit = go.Figure()
 
-                colors_exit = ['#EF4444' if x > 0 else '#10B981' for x in exit_analysis['總損益']]
+                # 修正: 根據損益正負賦予顏色 (紅色賺，綠色賠)
+                colors_exit = [COLOR_PROFIT if x > 0 else COLOR_LOSS for x in exit_analysis['總損益']]
 
                 fig_exit.add_trace(
                     go.Bar(
@@ -857,139 +938,149 @@ else:
                         text=exit_analysis['交易次數'],
                         texttemplate='%{text}筆',
                         textposition='outside',
-                        hovertemplate='<b>%{x}</b><br>總損益: $%{y:,.0f}<br>交易次數: %{text}筆<extra></extra>'
-                    ),
-                    row=1, col=1
-                )
-
-                colors_avg_exit = ['#EF4444' if x > 0 else '#10B981' for x in exit_analysis['平均損益']]
-
-                fig_exit.add_trace(
-                    go.Bar(
-                        x=exit_analysis['月份'],
-                        y=exit_analysis['平均損益'],
-                        marker=dict(color=colors_avg_exit, line=dict(color='#3A3F4B', width=0.5)),
-                        hovertemplate='<b>%{x}</b><br>平均損益: $%{y:,.0f}<extra></extra>'
-                    ),
-                    row=2, col=1
+                        hovertemplate='<b>%{x}</b><br>總損益: $%{y:,.0f}<br>交易次數: %{text}筆<extra></extra>',
+                        name='總損益'
+                    )
                 )
 
                 fig_exit.add_hline(y=0, line_dash="dash", line_color="#6B7280", line_width=1.5)
 
                 fig_exit.update_layout(
-                    height=700,
+                    title='關倉月份 - 總損益',
+                    height=500,
                     template='plotly_dark',
                     paper_bgcolor='#0B0E14',
                     plot_bgcolor='#1A1D24',
                     font=dict(color='#E8EAED', size=12),
                     showlegend=False,
-                    margin=dict(l=20, r=20, t=40, b=20)
+                    margin=dict(l=20, r=20, t=60, b=20),
+                    xaxis_title='月份',
+                    yaxis_title='總損益 (元)'
                 )
 
                 fig_exit.update_xaxes(showgrid=True, gridcolor='#3A3F4B')
-                fig_exit.update_yaxes(title_text="損益 (元)", showgrid=True, gridcolor='#3A3F4B')
+                fig_exit.update_yaxes(showgrid=True, gridcolor='#3A3F4B')
 
                 st.plotly_chart(fig_exit, use_container_width=True)
+
+                st.dataframe(exit_analysis.style.format({'總損益': '${:,.0f}', '交易次數': '{:.0f}'}),
+                             use_container_width=True)
 
         # 蒙地卡羅模擬
         st.markdown("<h2>🎲 蒙地卡羅模擬</h2>", unsafe_allow_html=True)
 
-        col1, col2, col3 = st.columns([2, 1, 2])
-        with col2:
-            if st.button("🚀 開始模擬", type="primary", use_container_width=True):
-                with st.spinner(f'⚡ 執行 {mc_simulations} 次模擬中...'):
-                    simulation_curves = monte_carlo_simulation(trades_df, mc_simulations, investment_amount)
+        # 修正: 將按鈕獨立出來
+        col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
+        with col_btn2:
+            if st.button("🚀 開始模擬", type="primary", use_container_width=True, key="mc_start_button"):
+                # 按鈕被點擊，設置 session state 標記，並儲存模擬次數
+                st.session_state.mc_triggered = True
+                st.session_state.mc_simulations = mc_simulations
+                # 重新執行以觸發下一階段的圖表顯示
+                # 這裡不需要 rerun，因為計算會直接在這裡發生
+                pass  # 讓程式碼繼續向下執行，進入模擬繪圖區塊
 
-                    # 繪製模擬曲線
-                    fig_mc = go.Figure()
+        if st.session_state.mc_triggered:
+            # 確保有交易數據才能模擬
+            if len(trades_df) > 0:
+                mc_simulations_count = st.session_state.mc_simulations
 
-                    # 添加所有模擬曲線
-                    for i, curve in enumerate(simulation_curves):
-                        color = 'rgba(74, 158, 255, 0.05)' if i < len(
-                            simulation_curves) - 1 else 'rgba(74, 158, 255, 0.05)'
-                        fig_mc.add_trace(go.Scatter(
-                            x=list(range(len(curve))),
-                            y=curve,
-                            mode='lines',
-                            line=dict(color=color, width=1),
-                            showlegend=False,
-                            hoverinfo='skip'
-                        ))
+                # 模擬計算會在這裡執行，並顯示內部進度條
+                simulation_curves = monte_carlo_simulation(trades_df, mc_simulations_count)
 
-                    # 添加實際曲線
+                # 繪製模擬曲線
+                fig_mc = go.Figure()
+
+                # 添加所有模擬曲線
+                for i, curve in enumerate(simulation_curves):
+                    # 降低透明度，讓實際曲線更突出
                     fig_mc.add_trace(go.Scatter(
-                        x=list(range(len(equity_curve))),
-                        y=equity_curve['累積損益'].values,
+                        x=list(range(len(curve))),
+                        y=curve,
                         mode='lines',
-                        name='實際曲線',
-                        line=dict(color='#EF4444', width=3),
-                        hovertemplate='<b>第%{x}筆交易</b><br>累積損益: $%{y:,.0f}<extra></extra>'
+                        line=dict(
+                            color=f'rgba({int(COLOR_PRIMARY[1:3], 16)}, {int(COLOR_PRIMARY[3:5], 16)}, {int(COLOR_PRIMARY[5:7], 16)}, 0.08)',
+                            width=1),  # 模擬曲線使用 Primary Blue
+                        showlegend=False,
+                        hoverinfo='skip'
                     ))
 
-                    # 添加零軸
-                    fig_mc.add_hline(y=0, line_dash="dash", line_color="#E8EAED", line_width=2)
+                # 添加實際曲線
+                fig_mc.add_trace(go.Scatter(
+                    x=list(range(len(equity_curve))),
+                    y=equity_curve['累積損益'].values,
+                    mode='lines',
+                    name='實際曲線',
+                    line=dict(color=COLOR_PROFIT, width=3),  # 修正: 實際曲線用紅色
+                    hovertemplate='<b>第%{x}筆交易</b><br>累積損益: $%{y:,.0f}<extra></extra>'
+                ))
 
-                    # 計算統計數據
-                    final_values = [curve[-1] for curve in simulation_curves]
-                    loss_prob = (np.array(final_values) < 0).sum() / len(final_values) * 100
-                    percentile_5 = np.percentile(final_values, 5)
-                    percentile_95 = np.percentile(final_values, 95)
-                    median = np.median(final_values)
+                # 添加零軸
+                fig_mc.add_hline(y=0, line_dash="dash", line_color="#6B7280", line_width=2)
 
-                    fig_mc.update_layout(
-                        title=f'蒙地卡羅模擬 (n={mc_simulations}) - 權益曲線',
-                        height=550,
-                        template='plotly_dark',
-                        paper_bgcolor='#0B0E14',
-                        plot_bgcolor='#1A1D24',
-                        font=dict(color='#E8EAED', size=12),
-                        xaxis_title="交易次數",
-                        yaxis_title="累積損益 (元)",
-                        hovermode='closest',
-                        margin=dict(l=20, r=20, t=60, b=20)
-                    )
+                # 計算統計數據
+                final_values = [curve[-1] for curve in simulation_curves]
+                loss_prob = (np.array(final_values) < 0).sum() / len(final_values) * 100
+                percentile_5 = np.percentile(final_values, 5)
+                percentile_95 = np.percentile(final_values, 95)
+                median = np.median(final_values)
 
-                    fig_mc.update_xaxes(showgrid=True, gridcolor='#3A3F4B')
-                    fig_mc.update_yaxes(showgrid=True, gridcolor='#3A3F4B')
+                fig_mc.update_layout(
+                    title=f'蒙地卡羅模擬 (n={mc_simulations_count}) - 權益曲線',
+                    height=550,
+                    template='plotly_dark',
+                    paper_bgcolor='#0B0E14',
+                    plot_bgcolor='#1A1D24',
+                    font=dict(color='#E8EAED', size=12),
+                    xaxis_title="交易次數",
+                    yaxis_title="累積損益 (元)",
+                    hovermode='closest',
+                    showlegend=True,
+                    margin=dict(l=20, r=20, t=60, b=20)
+                )
 
-                    st.plotly_chart(fig_mc, use_container_width=True)
+                fig_mc.update_xaxes(showgrid=True, gridcolor='#3A3F4B')
+                fig_mc.update_yaxes(showgrid=True, gridcolor='#3A3F4B')
 
-                    # 顯示統計數據
-                    st.markdown("### 📊 模擬統計")
-                    col1, col2, col3, col4 = st.columns(4)
+                st.plotly_chart(fig_mc, use_container_width=True)
 
-                    with col1:
-                        st.metric("⚠️ 虧損機率", f"{loss_prob:.1f}%")
-                    with col2:
-                        st.metric("📉 5% 最差", f"${percentile_5:,.0f}")
-                    with col3:
-                        st.metric("📊 中位數", f"${median:,.0f}")
-                    with col4:
-                        st.metric("📈 95% 最佳", f"${percentile_95:,.0f}")
+                # 顯示統計數據
+                st.markdown("### 📊 模擬統計")
+                col_mc1, col_mc2, col_mc3, col_mc4 = st.columns(4)
 
-        # 交易明細
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("📋 查看完整交易明細"):
-            st.dataframe(
-                trades_df[['商品名稱', '商品代碼', '進場時間', '出場時間', '進場價格',
-                           '出場價格', '股數', '投入金額', '損益', '報酬率', '持有天數']].style.format({
-                    '進場價格': '${:.2f}',
-                    '出場價格': '${:.2f}',
-                    '股數': '{:.0f}',
-                    '投入金額': '${:,.0f}',
-                    '損益': '${:,.0f}',
-                    '報酬率': '{:.2%}',
-                    '持有天數': '{:.0f}天'
-                }),
-                use_container_width=True,
-                height=400
-            )
+                with col_mc1:
+                    # 修正: 虧損機率顏色（機率越低越好，但這裡的顏色用於突顯數據）
+                    loss_color = COLOR_LOSS if loss_prob < 10 else COLOR_PROFIT
+                    st.markdown(
+                        f"<p style='color: {loss_color}; font-size: 1.5em; font-weight: 700;'>{loss_prob:.1f}%</p>",
+                        unsafe_allow_html=True)
+                    st.markdown("<p style='color: #9CA3AF; font-size: 0.9em;'>⚠️ 虧損機率</p>", unsafe_allow_html=True)
 
-# 頁尾
-st.markdown("<br><br>", unsafe_allow_html=True)
-st.markdown("""
-<div style='text-align: center; color: #6B7280; padding: 30px;'>
-    <p style='font-size: 1.1em; color: #9CA3AF;'>⚡ 3Q全球贏家 - 專業回測分析系統</p>
-    <p style='font-size: 0.9em; color: #6B7280; margin-top: 10px;'>Powered by Streamlit & Plotly</p>
-</div>
-""", unsafe_allow_html=True)
+                with col_mc2:
+                    # 修正: 樂觀情境顏色 (賺錢用紅色)
+                    p95_color = COLOR_PROFIT if percentile_95 > 0 else COLOR_LOSS
+                    st.markdown(
+                        f"<p style='color: {p95_color}; font-size: 1.5em; font-weight: 700;'>${percentile_95:,.0f}</p>",
+                        unsafe_allow_html=True)
+                    st.markdown("<p style='color: #9CA3AF; font-size: 0.9em;'>📈 95% 樂觀情境</p>",
+                                unsafe_allow_html=True)
+
+                with col_mc3:
+                    # 修正: 中位數顏色 (賺錢用紅色)
+                    median_color = COLOR_PROFIT if median > 0 else COLOR_LOSS
+                    st.markdown(
+                        f"<p style='color: {median_color}; font-size: 1.5em; font-weight: 700;'>${median:,.0f}</p>",
+                        unsafe_allow_html=True)
+                    st.markdown("<p style='color: #9CA3AF; font-size: 0.9em;'>⚖️ 模擬中位數</p>",
+                                unsafe_allow_html=True)
+
+                with col_mc4:
+                    # 修正: 最差情境顏色 (賺錢用紅色)
+                    p5_color = COLOR_PROFIT if percentile_5 > 0 else COLOR_LOSS
+                    st.markdown(
+                        f"<p style='color: {p5_color}; font-size: 1.5em; font-weight: 700;'>${percentile_5:,.0f}</p>",
+                        unsafe_allow_html=True)
+                    st.markdown("<p style='color: #9CA3AF; font-size: 0.9em;'>📉 5% 最差情境</p>",
+                                unsafe_allow_html=True)
+
+                    ## RUN 的方法：streamlit run app.py
