@@ -558,6 +558,69 @@ else:
         profit_factor = calculate_profit_factor(trades_df)
         win_rate = (trades_df['損益'] > 0).sum() / len(trades_df) * 100
         concurrent_df = calculate_concurrent_holdings(trades_df)
+        # --- 頂部 CTA 按鈕群組：藍底白字 (primary 樣式)，置中 ---
+        # 使用 col([1, 1.5, 1.5, 1.5, 1]) 讓三個按鈕置中
+        empty_col_l, action_col1, action_col2, action_col3, empty_col_r = st.columns([1, 1.5, 1.5, 1.5, 1])
+
+        with action_col1:
+            # 1. 重新上傳新報告 (使用 st.button，點擊後重置狀態並重新運行)
+            if st.button(
+                    "🔄 重新上傳新報告",
+                    use_container_width=True,
+                    key="top_upload_btn",
+                    type="primary"  # 使用主要藍色樣式
+            ):
+                # 這是最簡單的重置方法：直接將狀態設為未上傳，然後重新運行
+                st.session_state.uploaded = False
+                st.session_state.df = None
+                st.session_state.params_confirmed = False
+                st.rerun()
+
+        with action_col2:
+            # 2. 與老墨聯絡 (使用 st.link_button，不需 key 參數，使用 primary 樣式)
+            st.link_button(
+                "💬 與老墨聯絡",
+                "https://www.facebook.com/mofi.investment",
+                type="primary",
+                use_container_width=True
+            )
+
+        with action_col3:
+            # 3. YT 會員 (使用 st.link_button，不需 key 參數，使用 primary 樣式)
+            st.link_button(
+                "💎 加入老墨的 YT 會員",
+                "https://www.youtube.com/channel/UCb63d7hkO2l45NBBsGkpHDQ/join",
+                type="primary",
+                use_container_width=True
+            )
+
+        # 確保左右兩側是空的，實現置中
+        empty_col_l.empty()
+        empty_col_r.empty()
+
+        st.markdown("---")  # 分隔線
+
+        # --- CTA 圖片區塊 (報告之上，CTA 之下) ---
+        promo_col1, promo_col2, promo_col3 = st.columns([1, 4, 1])
+        with promo_col2:
+            try:
+                # 載入圖片：CTA BANNER.png
+                st.image("CTA BANNER.png", use_container_width=True, caption=None)
+            except FileNotFoundError:
+                # 如果圖片不存在，給予提示
+                st.warning("⚠️ 警告：找不到 CTA BANNER.png 圖片檔案，請確認已放置於 app.py 同一目錄。")
+
+            # 圖片下方的指定文字 (置中)
+            st.markdown(
+                f"""
+                <p style='text-align: center; font-size: 1.2em; font-weight: 600; color: #EF4444; margin-top: 15px; margin-bottom: 25px;'>
+                    請綁定老墨的 XQ 優惠碼: @MOFI
+                </p>
+                """, unsafe_allow_html=True
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        # --- CTA 區塊結束 ---
 
         # 關鍵指標
         st.markdown("<h2>📊 績效總覽</h2>", unsafe_allow_html=True)
@@ -1084,3 +1147,11 @@ else:
                                 unsafe_allow_html=True)
 
                     ## RUN 的方法：streamlit run app.py
+                    # 1. 確保 app.py 的變更被加入暫存區
+                    ##git add app.py
+
+                    # 2. 提交變更
+                    ##git commit - m "寫出改了什麼"
+
+                    # 3. 推送到 GitHub
+                    #git push origin main
